@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
-import { adminAPI } from '@/lib/api';
+import { adminAPI, API_URL } from '@/lib/api';
 import { format } from 'date-fns';
 
 type Ticket = {
@@ -68,7 +68,6 @@ export default function AdminSupportPage() {
   };
 
   const detail = detailId ? tickets.find((t) => t.id === detailId) : null;
-  const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
 
   return (
     <div>
@@ -165,7 +164,7 @@ export default function AdminSupportPage() {
                         type="button"
                         onClick={() => {
                           const token = typeof window !== 'undefined' ? localStorage.getItem('token') : '';
-                          fetch(`${API_URL}/api/support/attachment/${detail.id}/${encodeURIComponent(name)}`, {
+                          fetch(`${API_URL}/support/attachment/${detail.id}/${encodeURIComponent(name)}`, {
                             headers: token ? { Authorization: `Bearer ${token}` } : {},
                           })
                             .then((r) => r.blob())
