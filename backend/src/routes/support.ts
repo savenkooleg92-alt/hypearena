@@ -180,7 +180,7 @@ router.get('/attachment/:ticketId/:filename', authenticateToken, async (req: Aut
     }
     const safeName = path.basename(filename).replace(/\.\./g, '');
     const filePath = path.join(uploadsDir, ticketId, safeName);
-    if (!ticket.attachments.some((a) => path.basename(a) === safeName)) {
+    if (!ticket.attachments.some((a: string) => path.basename(a) === safeName)) {
       return res.status(404).json({ error: 'Not found' });
     }
     if (!fs.existsSync(filePath)) return res.status(404).json({ error: 'File not found' });

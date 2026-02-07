@@ -1,5 +1,6 @@
 import express, { Response } from 'express';
 import { z } from 'zod';
+import type { Bet } from '@prisma/client';
 import prisma from '../utils/prisma';
 import { authenticateToken, AuthRequest } from '../middleware/auth';
 import { requireAdmin } from '../middleware/auth';
@@ -279,12 +280,12 @@ router.post('/markets/:id/resolve', withAuth, async (req: AuthRequest, res: Resp
     if (!market.outcomes.includes(winningOutcome)) {
       return res.status(400).json({ error: 'Invalid winning outcome', validOutcomes: market.outcomes });
     }
-    const totalPool = market.bets.reduce((sum, b) => sum + b.amount, 0);
+    const totalPool = market.bets.reduce((sum: number, b: Bet) => sum + b.amount, 0);
     const commission = Math.round(totalPool * 0.015 * 100) / 100;
     const payoutPool = totalPool - commission;
-    const winningBets = market.bets.filter((b) => b.outcome === winningOutcome);
-    const totalWinningStake = winningBets.reduce((sum, b) => sum + b.amount, 0);
-    await prisma.$transaction(async (tx) => {
+    const winningBets = market.bets.filter((b: Bet) => b.outcome === winningOutcome);
+    const totalWinningStake = winningBets.reduce((sum: number, b: Bet) => sum + b.amount, 0);
+    await prisma.$transaction(async (tx: any) => {
       await tx.market.update({
         where: { id: market.id },
         data: { status: 'RESOLVED', winningOutcome, resolvedAt: new Date() },
@@ -307,7 +308,7 @@ router.post('/markets/:id/resolve', withAuth, async (req: AuthRequest, res: Resp
         });
         }
       }
-      const losingBets = market.bets.filter((b) => b.outcome !== winningOutcome);
+      const losingBets = market.bets.filter((b: Bet) => b.outcome !== winningOutcome);
       if (losingBets.length > 0) {
         await tx.bet.updateMany({
           where: { id: { in: losingBets.map((b) => b.id) } },
@@ -335,14 +336,14 @@ router.post('/markets/:id/remove', withAuth, async (req: AuthRequest, res: Respo
       return res.status(409).json({ error: 'Market cannot be removed', status: market.status });
     }
     const isResolved = market.status === 'RESOLVED' || market.status === 'CLOSED';
-    await prisma.$transaction(async (tx) => {
+    await prisma.$transaction(async (tx: any) => {
       await tx.market.update({
         where: { id: market.id },
         data: { status: 'CANCELLED', resolvedAt: new Date(), winningOutcome: null },
       });
       if (refund) {
         if (isResolved) {
-          for (const bet of market.bets) {
+          for (const bet of market.bets as Array<Bet & { payout: number | null; isWinning: boolean | null }>) {
             const stake = bet.amount;
             const payout = bet.payout ?? 0;
             const isWinning = bet.isWinning === true;
@@ -928,21 +929,22 @@ router.post('/oracle/diagnostic', withAuth, async (_req: AuthRequest, res: Respo
       }),
     ]);
 
+    type MarketWithOracle = { id: string; oracleMatchId: string | null; subCategory?: string | null };
     out.sports.pendingCount = sportsMarkets.length;
-    out.sports.pendingMarkets = sportsMarkets
-      .filter((m) => m.oracleMatchId)
-      .map((m) => ({ provider: 'sports', externalEventId: m.oracleMatchId!, marketId: m.id }));
+    out.sports.pendingMarkets = (sportsMarkets as MarketWithOracle[])
+      .filter((m: MarketWithOracle) => m.oracleMatchId)
+      .map((m: MarketWithOracle) => ({ provider: 'sports', externalEventId: m.oracleMatchId as string, marketId: m.id }));
     out.politics.pendingCount = politicsMarkets.length;
-    out.politics.pendingMarkets = politicsMarkets
-      .filter((m) => m.oracleMatchId)
-      .map((m) => ({ provider: 'politics', externalEventId: m.oracleMatchId!, marketId: m.id }));
+    out.politics.pendingMarkets = (politicsMarkets as MarketWithOracle[])
+      .filter((m: MarketWithOracle) => m.oracleMatchId)
+      .map((m: MarketWithOracle) => ({ provider: 'politics', externalEventId: m.oracleMatchId as string, marketId: m.id }));
     out.events.pendingCount = eventsMarkets.length;
-    out.events.pendingMarkets = eventsMarkets
-      .filter((m) => m.oracleMatchId)
-      .map((m) => ({ provider: 'events', externalEventId: m.oracleMatchId!, marketId: m.id }));
+    out.events.pendingMarkets = (eventsMarkets as MarketWithOracle[])
+      .filter((m: MarketWithOracle) => m.oracleMatchId)
+      .map((m: MarketWithOracle) => ({ provider: 'events', externalEventId: m.oracleMatchId as string, marketId: m.id }));
 
     // --- Sports: fetch params + fetchedCount (per sport_key from pending) ---
-    const sportKeys = [...new Set(sportsMarkets.map((m) => subCategoryToSportKey(m.subCategory ?? 'nfl')))];
+    const sportKeys = [...new Set((sportsMarkets as MarketWithOracle[]).map((m: MarketWithOracle) => subCategoryToSportKey(m.subCategory ?? 'nfl')))];
     for (const sportKey of sportKeys.length ? sportKeys : ['americanfootball_nfl']) {
       const diag = await fetchSportsScoresForDiagnostic(sportKey, 3);
       out.sports.fetchParams.push(diag.fetchParams);
@@ -1267,7 +1269,7 @@ router.post('/oracle/reopen-match', withAuth, async (req: AuthRequest, res: Resp
     }
     const result = await reopenMatchByOracleMatchId(parsed.data.oracleMatchId);
     if (!result.ok) {
-      return res.status(400).json({ ok: false, error: result.error, ...result });
+      return res.status(400).json(result);
     }
     res.json(result);
   } catch (e) {
@@ -1286,7 +1288,7 @@ router.post('/oracle/resolve-match', withAuth, async (req: AuthRequest, res: Res
     }
     const result = await resolveMatchByOracleMatchId(parsed.data.oracleMatchId);
     if (!result.ok) {
-      return res.status(400).json({ ok: false, error: result.error, ...result });
+      return res.status(400).json(result);
     }
     res.json(result);
   } catch (e) {
@@ -1324,10 +1326,10 @@ router.get('/roulette/current', withAuth, async (_req: AuthRequest, res: Respons
       feeCents: round.feeCents,
       winnerUserId: round.winnerUserId,
       winningTicket: round.winningTicket,
-      bets: round.bets.map((b) => ({
+      bets: round.bets.map((b: { id: string; userId: string; amountCents: number; ticketsFrom: number; ticketsTo: number; user?: { username: string } | null }) => ({
         id: b.id,
         userId: b.userId,
-        username: b.user?.username,
+        username: (b as { user?: { username: string } }).user?.username,
         amountCents: b.amountCents,
         ticketsFrom: b.ticketsFrom,
         ticketsTo: b.ticketsTo,
@@ -1344,7 +1346,7 @@ router.get('/roulette/history', withAuth, async (req: AuthRequest, res: Response
     const limit = Math.min(parseInt(String(req.query.limit || '20'), 10) || 20, 100);
     const rounds = await RouletteService.getHistory(limit);
     res.json(
-      rounds.map((r) => ({
+      rounds.map((r: { id: string; roundNumber: number; status: string; endsAt: Date | null; potCents: number; feeCents: number; winnerUserId: string | null; winningTicket: number | null; serverSeed: string | null; updatedAt: Date }) => ({
         id: r.id,
         roundNumber: r.roundNumber,
         status: r.status,

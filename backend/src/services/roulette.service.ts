@@ -78,14 +78,14 @@ export async function placeBet(
 ): Promise<PlaceBetResult> {
   const amountCents = Math.round(amountDollars * 100);
   if (amountCents < MIN_BET_CENTS) {
-    return { ok: false, error: `Minimum bet is $${(MIN_BET_CENTS / 100).toFixed(2)}` };
+    return { ok: false as const, error: `Minimum bet is $${(MIN_BET_CENTS / 100).toFixed(2)}` };
   }
 
-  return prisma.$transaction(async (tx) => {
+  return prisma.$transaction(async (tx: any) => {
     const user = await tx.user.findUnique({ where: { id: userId } });
-    if (!user) return { ok: false, error: 'User not found' };
+    if (!user) return { ok: false as const, error: 'User not found' };
     const balanceCents = centsFromBalance(user.balance);
-    if (balanceCents < amountCents) return { ok: false, error: 'Insufficient balance' };
+    if (balanceCents < amountCents) return { ok: false as const, error: 'Insufficient balance' };
 
     let round = await tx.rouletteRound.findFirst({
       where: { status: 'OPEN' },
@@ -126,7 +126,7 @@ export async function placeBet(
 
     const now = new Date();
     if (round.endsAt && now >= round.endsAt) {
-      return { ok: false, error: 'Round has ended' };
+      return { ok: false as const, error: 'Round has ended' };
     }
 
     // Lock round row so concurrent bets get correct sequential ticket ranges (all tickets 1..totalTickets participate)
@@ -172,7 +172,7 @@ export async function placeBet(
     });
 
     const updated = await getOrCreateCurrentRound();
-    return { ok: true, round: updated };
+    return { ok: true as const, round: updated };
   });
 }
 
@@ -202,7 +202,7 @@ export async function resolveRound(roundId: string): Promise<{ ok: boolean; erro
     let resolvedWinningTicket: number | undefined;
     let resolvedTotalTickets: number | undefined;
 
-    await prisma.$transaction(async (tx) => {
+    await prisma.$transaction(async (tx: any) => {
       // 1. Atomic claim: only one resolver can transition OPEN -> RESOLVING
       const claim = await tx.rouletteRound.updateMany({
         where: { id: roundId, status: 'OPEN' },
@@ -233,7 +233,7 @@ export async function resolveRound(roundId: string): Promise<{ ok: boolean; erro
         round.nonce,
         round.totalTickets
       );
-      const winnerBet = round.bets.find((b) => winningTicket >= b.ticketsFrom && winningTicket <= b.ticketsTo);
+      const winnerBet = round.bets.find((b: { ticketsFrom: number; ticketsTo: number }) => winningTicket >= b.ticketsFrom && winningTicket <= b.ticketsTo);
       const winnerUserId = winnerBet?.userId ?? null;
 
       let feeCents = Math.floor(round.potCents * FEE_RATE);
@@ -300,7 +300,7 @@ export async function resolveRound(roundId: string): Promise<{ ok: boolean; erro
     }
     return { ok: true, winningTicket: resolvedWinningTicket, totalTickets: resolvedTotalTickets };
   } catch (e) {
-    return { ok: false, error: e instanceof Error ? e.message : String(e) };
+    return { ok: false as const, error: e instanceof Error ? e.message : String(e) };
   }
 }
 
@@ -311,7 +311,7 @@ export async function resolveDueRounds(): Promise<{ resolved: number; errors: st
     where: { status: 'OPEN', endsAt: { lte: now } },
     select: { id: true },
   });
-  const dueIds = due.map((r) => r.id);
+  const dueIds = due.map((r: { id: string }) => r.id);
   if (dueIds.length > 0) {
     console.log(`[roulette] resolveDueRounds: found ${dueIds.length} due round(s): ${dueIds.join(', ')}`);
   }

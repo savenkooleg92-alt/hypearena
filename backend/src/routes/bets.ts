@@ -1,5 +1,6 @@
 import express from 'express';
 import { z } from 'zod';
+import type { Bet } from '@prisma/client';
 import prisma from '../utils/prisma';
 import { authenticateToken, AuthRequest } from '../middleware/auth';
 
@@ -73,17 +74,17 @@ router.post('/', authenticateToken, async (req: AuthRequest, res) => {
     // Precompute odds (for Bet record) from current bets
     const existingBets = await prisma.bet.findMany({ where: { marketId } });
     const outcomeTotals: Record<string, number> = {};
-    existingBets.forEach((bet) => {
+    existingBets.forEach((bet: Bet) => {
       outcomeTotals[bet.outcome] = (outcomeTotals[bet.outcome] || 0) + bet.amount;
     });
-    const totalBets = existingBets.reduce((sum, bet) => sum + bet.amount, 0);
+    const totalBets = existingBets.reduce((sum: number, bet: Bet) => sum + bet.amount, 0);
     const newTotal = totalBets + amount;
     const newTotalAfterFee = newTotal * (1 - PLATFORM_FEE);
     const newOutcomeTotal = (outcomeTotals[outcome] || 0) + amount;
     const odds = newTotalAfterFee / newOutcomeTotal;
 
     // Atomic: debit user, create bet (pool = sum of bets per outcome), create transaction
-    const [updatedUser, bet] = await prisma.$transaction(async (tx) => {
+    const [updatedUser, bet] = await prisma.$transaction(async (tx: any) => {
       const u = await tx.user.update({
         where: { id: userId },
         data: { balance: { decrement: amount } },
@@ -122,7 +123,7 @@ router.post('/', authenticateToken, async (req: AuthRequest, res) => {
       select: { outcome: true, amount: true },
     });
     const pools: Record<string, number> = {};
-    allBetsForMarket.forEach((b) => {
+    allBetsForMarket.forEach((b: { outcome: string; amount: number }) => {
       pools[b.outcome] = (pools[b.outcome] ?? 0) + b.amount;
     });
 

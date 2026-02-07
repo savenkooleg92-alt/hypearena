@@ -55,7 +55,7 @@ router.get('/current', async (_req, res: Response) => {
       winnerUserId: round.winnerUserId,
       winningTicket: round.winningTicket,
       createdAt: round.createdAt,
-      bets: round.bets.map((b) => ({
+      bets: round.bets.map((b: { id: string; userId: string; amountCents: number; ticketsFrom: number; ticketsTo: number; createdAt: Date; user?: { username: string | null; isAnonymous: boolean | null } | null }) => ({
         id: b.id,
         userId: b.userId,
         username: b.user?.username,
@@ -107,7 +107,7 @@ router.post('/bet', authenticateToken, async (req: AuthRequest, res: Response) =
         seedHash: round.seedHash,
         totalTickets: round.totalTickets,
         potCents: round.potCents,
-        bets: round.bets.map((b) => ({
+        bets: round.bets.map((b: { id: string; userId: string; amountCents: number; ticketsFrom: number; ticketsTo: number; createdAt: Date; user?: { username: string | null; isAnonymous: boolean | null } | null }) => ({
           id: b.id,
           userId: b.userId,
           username: b.user?.username,
@@ -154,7 +154,7 @@ router.get('/my-bets', authenticateToken, async (req: AuthRequest, res: Response
       orderBy: { createdAt: 'desc' },
       take: limit,
     });
-    const list = bets.map((b) => {
+    const list = bets.map((b: { id: string; amountCents: number; ticketsFrom: number; ticketsTo: number; createdAt: Date; round: { id: string; status: string; winningTicket: number | null; winnerUserId: string | null; potCents: number | null; feeCents: number | null; roundNumber: number } }) => {
       const r = b.round;
       const won =
         r.status === 'FINISHED' &&
@@ -187,8 +187,9 @@ router.get('/history', async (req, res: Response) => {
   try {
     const limit = Math.min(parseInt(String(req.query.limit || '20'), 10) || 20, 100);
     const rounds = await RouletteService.getHistory(limit);
+    type RoundItem = { id: string; roundNumber: number; status: string; startsAt: Date | null; endsAt: Date | null; seedHash: string | null; serverSeed: string | null; clientSeed: string | null; nonce: number; totalTickets: number; potCents: number; feeCents: number; winnerUserId: string | null; winningTicket: number | null; createdAt: Date; updatedAt: Date; bets: Array<{ id: string; userId: string; amountCents: number; ticketsFrom: number; ticketsTo: number; user?: { username: string | null; isAnonymous: boolean | null } | null }> };
     res.json(
-      rounds.map((r) => ({
+      rounds.map((r: RoundItem) => ({
         id: r.id,
         roundNumber: r.roundNumber,
         status: r.status,
@@ -205,7 +206,7 @@ router.get('/history', async (req, res: Response) => {
         winningTicket: r.winningTicket,
         createdAt: r.createdAt,
         updatedAt: r.updatedAt,
-        bets: r.bets.map((b) => ({
+        bets: r.bets.map((b: { id: string; userId: string; amountCents: number; ticketsFrom: number; ticketsTo: number; user?: { username: string | null; isAnonymous: boolean | null } | null }) => ({
           id: b.id,
           userId: b.userId,
           username: b.user?.username,

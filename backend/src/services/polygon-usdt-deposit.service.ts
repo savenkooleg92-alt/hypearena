@@ -201,7 +201,7 @@ export async function detectPolygonUsdtDeposits(): Promise<{ detected: number; e
     where: { network: NETWORK_MATIC },
     include: { user: { select: { id: true } } },
   });
-  const depositAddressSet = new Set(addresses.map((a) => a.address.toLowerCase()));
+  const depositAddressSet = new Set(addresses.map((a: { address: string }) => a.address.toLowerCase()));
   const addressByLower = new Map<string, (typeof addresses)[0]>();
   for (const wa of addresses) {
     addressByLower.set(wa.address.toLowerCase(), wa);
@@ -491,7 +491,7 @@ export async function creditPolygonDepositByTxHash(
     where: { network: NETWORK_MATIC },
     select: { address: true },
   });
-  const ourAddressesLower = new Set(maticAddresses.map((a) => a.address.toLowerCase()));
+  const ourAddressesLower = new Set(maticAddresses.map((a: { address: string }) => a.address.toLowerCase()));
 
   for (const log of receipt.logs) {
     if (log.address?.toLowerCase() !== POLYGON_TOKEN_CONTRACT_0X.toLowerCase()) continue;
@@ -518,7 +518,7 @@ export async function creditPolygonDepositByTxHash(
 
     const creditResult = await createAndCreditPolygonDeposit(txHashNorm, wa.address, amountUsd);
     if (!creditResult.ok) return { ok: false, error: creditResult.error ?? 'Credit failed' };
-    return { ok: true, credited: (creditResult as { credited?: boolean }).credited ?? true, depositAddress: wa.address, amountUsd };
+    return { ok: true, credited: ((creditResult as { credited?: boolean }).credited ?? true) as true, depositAddress: wa.address, amountUsd };
   }
 
   return { ok: false, error: 'No USDT Transfer to any of our MATIC deposit addresses in this tx' };

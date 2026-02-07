@@ -3,8 +3,22 @@
  * Lifecycle: PENDING → (Approve) APPROVED → (Send payout) SENT | FAILED.
  * Balance deducted on creation; refunded if FAILED. Anti double-payout: only send when status === APPROVED and !txId.
  */
-import type { WithdrawalRequest } from '@prisma/client';
 import prisma from '../utils/prisma';
+
+export type WithdrawalRequest = {
+  id: string;
+  userId: string;
+  network: string;
+  toAddress: string;
+  amountGross: number;
+  fee: number;
+  amountNet: number;
+  status: string;
+  txId: string | null;
+  error: string | null;
+  createdAt: Date;
+  updatedAt: Date;
+};
 import * as TatumService from './TatumService';
 
 /** Fixed withdrawal fee per network (USD). From env or defaults. */
@@ -95,7 +109,7 @@ export async function createWithdrawal(
     throw new Error('Amount too small after fee');
   }
 
-  const result = await prisma.$transaction(async (tx) => {
+  const result = await prisma.$transaction(async (tx: any) => {
     const user = await tx.user.findUnique({ where: { id: userId } });
     if (!user) return { kind: 'NO_USER' as const };
 
@@ -231,7 +245,7 @@ export async function getTransactionsForUser(
     }),
   ]);
 
-  const depositItems: WalletTransactionItem[] = deposits.map((d) => ({
+  const depositItems: WalletTransactionItem[] = deposits.map((d: { id: string; amountUsd: number; network: string; status: string; createdAt: Date }) => ({
     id: d.id,
     type: 'Deposit',
     amountGross: d.amountUsd,
@@ -243,7 +257,7 @@ export async function getTransactionsForUser(
     createdAt: d.createdAt.toISOString(),
   }));
 
-  const withdrawItems: WalletTransactionItem[] = withdrawals.map((w) => ({
+  const withdrawItems: WalletTransactionItem[] = withdrawals.map((w: { id: string; amountGross: number; fee: number; amountNet: number; network: string; status: string; createdAt: Date }) => ({
     id: w.id,
     type: 'Withdraw',
     amountGross: w.amountGross,
@@ -267,7 +281,7 @@ export type ApproveWithdrawalResult =
   | { kind: 'OK'; wr: WithdrawalRequest };
 
 export async function approveWithdrawal(id: string): Promise<ApproveWithdrawalResult> {
-  const result = await prisma.$transaction(async (tx) => {
+  const result = await prisma.$transaction(async (tx: any) => {
     const wr = await tx.withdrawalRequest.findUnique({ where: { id } });
     if (!wr) return { kind: 'NO' as const };
     if (wr.status !== 'PENDING') return { kind: 'BAD' as const, status: wr.status };
@@ -326,7 +340,7 @@ export async function sendWithdrawalPayout(withdrawalId: string): Promise<SendWi
   } catch (e) {
     const errMsg = e instanceof Error ? e.message : String(e);
     console.error('[withdraw] payout failed', { id: wr.id, network: wr.network, error: errMsg });
-    await prisma.$transaction(async (tx) => {
+    await prisma.$transaction(async (tx: any) => {
       await tx.withdrawalRequest.update({
         where: { id: withdrawalId },
         data: { status: 'FAILED', error: errMsg.slice(0, 500) },
@@ -347,7 +361,7 @@ export async function sendWithdrawalPayout(withdrawalId: string): Promise<SendWi
     return { kind: 'BAD', reason: errMsg };
   }
 
-  await prisma.$transaction(async (tx) => {
+  await prisma.$transaction(async (tx: any) => {
     await tx.withdrawalRequest.update({
       where: { id: withdrawalId },
       data: { status: 'SENT', txId, error: null },
@@ -365,7 +379,7 @@ export type RetryWithdrawalResult =
 
 /** Retry a FAILED withdrawal: deduct balance again and set status APPROVED so admin can Send payout. */
 export async function retryWithdrawal(id: string): Promise<RetryWithdrawalResult> {
-  const result = await prisma.$transaction(async (tx) => {
+  const result = await prisma.$transaction(async (tx: any) => {
     const wr = await tx.withdrawalRequest.findUnique({ where: { id } });
     if (!wr) return { kind: 'NO' as const };
     if (wr.status !== 'FAILED') return { kind: 'BAD' as const, reason: `Expected FAILED, got ${wr.status}` };
@@ -411,7 +425,7 @@ export async function failWithdrawal(
   id: string,
   body: { error?: string }
 ): Promise<FailWithdrawalResult> {
-  const result = await prisma.$transaction(async (tx) => {
+  const result = await prisma.$transaction(async (tx: any) => {
     const wr = await tx.withdrawalRequest.findUnique({ where: { id } });
     if (!wr) return { kind: 'NO' as const };
     if (wr.status !== 'PENDING') return { kind: 'BAD' as const, status: wr.status };

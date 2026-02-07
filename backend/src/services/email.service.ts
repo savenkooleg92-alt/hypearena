@@ -30,7 +30,7 @@ export function logSmtpConfigOnce(): void {
   );
 }
 
-function getTransporter(): nodemailer.Transporter | null {
+function getTransporter(): any {
   logSmtpConfigOnce();
   const host = process.env.SMTP_HOST;
   const port = process.env.SMTP_PORT ? parseInt(process.env.SMTP_PORT, 10) : 587;

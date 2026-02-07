@@ -79,13 +79,13 @@ async function resolveMarketById(marketId: string, winningOutcome: string): Prom
   if (!market || market.status !== 'OPEN') return;
   if (!market.outcomes.includes(winningOutcome)) return;
 
-  const totalPool = market.bets.reduce((sum, b) => sum + b.amount, 0);
+  const totalPool = market.bets.reduce((sum: number, b: { amount: number }) => sum + b.amount, 0);
   const commission = round2(totalPool * PLATFORM_FEE);
   const payoutPool = totalPool - commission;
-  const winningBets = market.bets.filter((b) => b.outcome === winningOutcome);
-  const totalWinningStake = winningBets.reduce((sum, b) => sum + b.amount, 0);
+  const winningBets = market.bets.filter((b: { outcome: string }) => b.outcome === winningOutcome);
+  const totalWinningStake = winningBets.reduce((sum: number, b: { amount: number }) => sum + b.amount, 0);
 
-  await prisma.$transaction(async (tx) => {
+  await prisma.$transaction(async (tx: any) => {
     await tx.market.update({
       where: { id: market.id },
       data: { status: 'RESOLVED', winningOutcome, resolvedAt: new Date() },
@@ -110,10 +110,10 @@ async function resolveMarketById(marketId: string, winningOutcome: string): Prom
         });
       }
     }
-    const losingBets = market.bets.filter((b) => b.outcome !== winningOutcome);
+    const losingBets = market.bets.filter((b: { outcome: string }) => b.outcome !== winningOutcome);
     if (losingBets.length > 0) {
       await tx.bet.updateMany({
-        where: { id: { in: losingBets.map((b) => b.id) } },
+        where: { id: { in: losingBets.map((b: { id: string }) => b.id) } },
         data: { isWinning: false, payout: 0 },
       });
     }
@@ -128,7 +128,7 @@ async function cancelMarketAndRefund(marketId: string): Promise<void> {
   });
   if (!market || market.status !== 'OPEN') return;
 
-  await prisma.$transaction(async (tx) => {
+  await prisma.$transaction(async (tx: any) => {
     await tx.market.update({
       where: { id: market.id },
       data: { status: 'CANCELLED', resolvedAt: new Date(), winningOutcome: null },
@@ -252,7 +252,7 @@ export async function runResolution(): Promise<{ resolved: number; matchedCount:
       status: 'OPEN',
       OR: [
         { endDate: { lte: now } },
-        { and: [{ endDate: null }, { startsAt: { lte: now } }] },
+        { AND: [{ endDate: null }, { startsAt: { lte: now } }] },
       ],
     },
     orderBy: [{ endDate: 'asc' }, { startsAt: 'asc' }],

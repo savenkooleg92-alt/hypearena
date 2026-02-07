@@ -264,8 +264,8 @@ async function runPolygonSweepInner(
 
     console.log('[polygon-sweep] sweep signing', {
       depositAddress: row.address.slice(0, 12) + '…',
-      depositIds: creditedDeposits.map((d) => d.id),
-      txHashes: creditedDeposits.map((d) => d.txHash.slice(0, 16) + '…'),
+      depositIds: creditedDeposits.map((d: { id: string }) => d.id),
+      txHashes: creditedDeposits.map((d: { txHash: string }) => d.txHash.slice(0, 16) + '…'),
       amountUsd: creditedSumHuman,
       amountToSweep,
     });
@@ -426,7 +426,7 @@ async function runPolygonSweepInner(
         addr: row.address.slice(0, 12) + '…',
         usdt: amountToSweep.toFixed(2),
         tx: sweepTxId.slice(0, 18) + '…',
-        depositIds: creditedDeposits.map((d) => d.id),
+        depositIds: creditedDeposits.map((d: { id: string }) => d.id),
       });
       results.push({ network: row.network, address: row.address, amount: amountToSweep, txId: sweepTxId, success: true });
     } catch (e) {

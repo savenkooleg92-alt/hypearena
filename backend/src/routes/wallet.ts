@@ -185,7 +185,7 @@ router.get('/addresses', authenticateToken, async (req: AuthRequest, res) => {
     });
 
     const addresses: Record<string, string> = {};
-    rows.forEach((r) => {
+    rows.forEach((r: { network: string; address: string }) => {
       addresses[r.network] = r.address;
     });
 
@@ -307,7 +307,7 @@ router.post('/address', authenticateToken, async (req: AuthRequest, res) => {
 
   for (let attempt = 1; attempt <= maxRetries; attempt++) {
     try {
-      const { address } = await prisma.$transaction(async (tx) => {
+      const { address } = await prisma.$transaction(async (tx: any) => {
         const counter = await tx.networkCounter.upsert({
           where: { network },
           create: { network, nextIndex: 0 },

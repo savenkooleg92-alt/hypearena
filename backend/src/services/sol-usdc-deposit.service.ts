@@ -432,8 +432,8 @@ export async function sweepSolUsdcDeposits(): Promise<{ swept: number; sweptTxId
     }
     console.log('[sol-usdc] sweep signing', {
       depositAddress: depositAddress.slice(0, 12) + '…',
-      depositIds: creditedDeposits.map((d) => d.id),
-      txHashes: creditedDeposits.map((d) => d.txHash.slice(0, 16) + '…'),
+      depositIds: creditedDeposits.map((d: { id: string }) => d.id),
+      txHashes: creditedDeposits.map((d: { txHash: string }) => d.txHash.slice(0, 16) + '…'),
       amountUsd: creditedSumHuman,
       amountToSweepTokens: amountToSweep.toString(),
     });
@@ -602,7 +602,7 @@ export async function sweepSolUsdcDeposits(): Promise<{ swept: number; sweptTxId
       });
       swept++;
       sweptTxIds.push(sig);
-      console.log('[sol-usdc] sweep success', { deposit: depositAddress, tx: sig, depositIds: creditedDeposits.map((d) => d.id) });
+      console.log('[sol-usdc] sweep success', { deposit: depositAddress, tx: sig, depositIds: creditedDeposits.map((d: { id: string }) => d.id) });
     } catch (e) {
       const errMsg = e instanceof Error ? e.message : String(e);
       const errLog = e instanceof Error ? (e.stack || e.message) : String(e);

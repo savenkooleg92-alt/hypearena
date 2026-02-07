@@ -1,5 +1,6 @@
 import express from 'express';
 import { z } from 'zod';
+import type { Bet } from '@prisma/client';
 import prisma from '../utils/prisma';
 import { authenticateToken, AuthRequest } from '../middleware/auth';
 
@@ -114,18 +115,18 @@ router.get('/', async (req, res) => {
     });
 
     // Calculate odds for each market
-    const marketsWithOdds = markets.map((market) => {
-      const totalBets = market.bets.reduce((sum, bet) => sum + bet.amount, 0);
+    const marketsWithOdds = markets.map((market: { bets: { outcome: string; amount: number }[]; outcomes: string[] }) => {
+      const totalBets = market.bets.reduce((sum: number, bet: { amount: number }) => sum + bet.amount, 0);
       const outcomeTotals: Record<string, number> = {};
 
-      market.bets.forEach((bet) => {
+      market.bets.forEach((bet: { outcome: string; amount: number }) => {
         outcomeTotals[bet.outcome] = (outcomeTotals[bet.outcome] || 0) + bet.amount;
       });
 
       // Odds reflect 1.5% platform fee so users see accurate potential wins
       const poolAfterFee = totalBets * (1 - PLATFORM_FEE);
       const odds: Record<string, number> = {};
-      market.outcomes.forEach((outcome) => {
+      market.outcomes.forEach((outcome: string) => {
         const outcomeTotal = outcomeTotals[outcome] || 0;
         odds[outcome] = totalBets > 0 ? poolAfterFee / (outcomeTotal || 1) : 1;
       });
@@ -162,15 +163,16 @@ router.get('/event/:eventKey', async (req, res) => {
       orderBy: [{ oracleMatchId: 'asc' }, { marketType: 'asc' }, { createdAt: 'asc' }],
     });
 
-    const withOdds = markets.map((m) => {
-      const totalBets = m.bets.reduce((sum, b) => sum + b.amount, 0);
+    type M = { id: string; title: string; status: string; outcomes: string[]; startsAt: Date | null; winningOutcome: string | null; marketType: string | null; bets: { outcome: string; amount: number }[] };
+    const withOdds = markets.map((m: M) => {
+      const totalBets = m.bets.reduce((sum: number, b: { amount: number }) => sum + b.amount, 0);
       const outcomeTotals: Record<string, number> = {};
-      m.bets.forEach((b) => {
+      m.bets.forEach((b: { outcome: string; amount: number }) => {
         outcomeTotals[b.outcome] = (outcomeTotals[b.outcome] || 0) + b.amount;
       });
       const poolAfterFee = totalBets * (1 - PLATFORM_FEE);
       const odds: Record<string, number> = {};
-      m.outcomes.forEach((o) => {
+      m.outcomes.forEach((o: string) => {
         odds[o] = totalBets > 0 ? poolAfterFee / (outcomeTotals[o] || 1) : 1;
       });
       return {
@@ -243,7 +245,7 @@ router.get('/:id', async (req, res) => {
     }
 
     const eventKey = market.oracleMatchId ?? market.id;
-    const betsForResponse = market.bets.map((b) => ({
+    const betsForResponse = market.bets.map((b: { id: string; outcome: string; amount: number; createdAt: Date; user?: { isAnonymous: boolean | null; username: string | null } | null }) => ({
       id: b.id,
       outcome: b.outcome,
       amount: b.amount,
@@ -264,15 +266,16 @@ router.get('/:id', async (req, res) => {
       },
     });
 
-    const relatedMarkets = relatedRows.map((m) => {
-      const totalBets = m.bets.reduce((sum, b) => sum + b.amount, 0);
+    type M2 = { id: string; title: string; status: string; outcomes: string[]; startsAt: Date | null; winningOutcome: string | null; marketType: string | null; bets: { outcome: string; amount: number }[] };
+    const relatedMarkets = relatedRows.map((m: M2) => {
+      const totalBets = m.bets.reduce((sum: number, b: { amount: number }) => sum + b.amount, 0);
       const outcomeTotals: Record<string, number> = {};
-      m.bets.forEach((b) => {
+      m.bets.forEach((b: { outcome: string; amount: number }) => {
         outcomeTotals[b.outcome] = (outcomeTotals[b.outcome] || 0) + b.amount;
       });
       const poolAfterFee = totalBets * (1 - PLATFORM_FEE);
       const odds: Record<string, number> = {};
-      m.outcomes.forEach((o) => {
+      m.outcomes.forEach((o: string) => {
         odds[o] = totalBets > 0 ? poolAfterFee / (outcomeTotals[o] || 1) : 1;
       });
       return {
@@ -288,14 +291,14 @@ router.get('/:id', async (req, res) => {
       };
     });
 
-    const totalBets = market.bets.reduce((sum, bet) => sum + bet.amount, 0);
+    const totalBets = market.bets.reduce((sum: number, bet: Bet) => sum + bet.amount, 0);
     const outcomeTotals: Record<string, number> = {};
-    market.bets.forEach((bet) => {
+    market.bets.forEach((bet: Bet) => {
       outcomeTotals[bet.outcome] = (outcomeTotals[bet.outcome] || 0) + bet.amount;
     });
     const poolAfterFee = totalBets * (1 - PLATFORM_FEE);
     const odds: Record<string, number> = {};
-    market.outcomes.forEach((outcome) => {
+    market.outcomes.forEach((outcome: string) => {
       const outcomeTotal = outcomeTotals[outcome] || 0;
       odds[outcome] = totalBets > 0 ? poolAfterFee / (outcomeTotal || 1) : 1;
     });
@@ -387,13 +390,13 @@ router.post('/:id/resolve', authenticateToken, async (req: AuthRequest, res) => 
       return res.status(400).json({ error: 'Invalid winning outcome', validOutcomes: market.outcomes });
     }
 
-    const totalPool = market.bets.reduce((sum, bet) => sum + bet.amount, 0);
+    const totalPool = market.bets.reduce((sum: number, bet: Bet) => sum + bet.amount, 0);
     const commission = round2(totalPool * PLATFORM_FEE);
     const payoutPool = totalPool - commission;
-    const winningBets = market.bets.filter((bet) => bet.outcome === winningOutcome);
-    const totalWinningStake = winningBets.reduce((sum, bet) => sum + bet.amount, 0);
+    const winningBets = market.bets.filter((bet: Bet) => bet.outcome === winningOutcome);
+    const totalWinningStake = winningBets.reduce((sum: number, bet: Bet) => sum + bet.amount, 0);
 
-    await prisma.$transaction(async (tx) => {
+    await prisma.$transaction(async (tx: any) => {
       await tx.market.update({
         where: { id: market.id },
         data: {
@@ -431,10 +434,10 @@ router.post('/:id/resolve', authenticateToken, async (req: AuthRequest, res) => 
         }
       }
 
-      const losingBets = market.bets.filter((bet) => bet.outcome !== winningOutcome);
+      const losingBets = market.bets.filter((bet: Bet) => bet.outcome !== winningOutcome);
       if (losingBets.length > 0) {
         await tx.bet.updateMany({
-          where: { id: { in: losingBets.map((b) => b.id) } },
+          where: { id: { in: losingBets.map((b: Bet) => b.id) } },
           data: { isWinning: false, payout: 0 },
         });
       }

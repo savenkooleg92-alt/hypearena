@@ -43,7 +43,8 @@ function getTronTrc20BalanceRaw(address: string): Promise<string> {
       if (!res.ok) throw new Error('Trongrid triggerconstantcontract: ' + res.status);
       return res.json();
     })
-    .then((data: { constant_result?: string[] }) => {
+    .then((value: unknown) => {
+      const data = value as { constant_result?: string[] };
       const hexResult = data.constant_result?.[0];
       if (!hexResult) return '0';
       return String(BigInt('0x' + hexResult));

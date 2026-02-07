@@ -87,7 +87,7 @@ router.get('/thread/:eventKey/messages', async (req, res: Response) => {
     const nextCursor = hasMore && list.length > 0 ? list[list.length - 1].id : null;
 
     return res.json({
-      messages: list.map((m) => ({
+      messages: list.map((m: { id: string; userId: string | null; username: string | null; body: string; createdAt: Date }) => ({
         id: m.id,
         userId: m.userId,
         username: m.username ?? 'Anonymous',
