@@ -1,0 +1,4 @@
+-- AlterTable
+ALTER TABLE "markets" ADD COLUMN IF NOT EXISTS "oracleLastError" TEXT;
+ALTER TABLE "markets" ADD COLUMN IF NOT EXISTS "oracleLastErrorAt" TIMESTAMP(3);
+ALTER TABLE "markets" ADD COLUMN IF NOT EXISTS "oracleRetryCount" INTEGER NOT NULL DEFAULT 0;

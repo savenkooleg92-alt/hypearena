@@ -1,0 +1,348 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id          String  @id @default(cuid())
+  email       String  @unique
+  username    String  @unique
+  password    String
+  balance     Float   @default(0) // Starting balance (no dev auto-credit)
+  isAdmin     Boolean @default(false)
+  isAnonymous Boolean @default(false) // When true, show "Anonymous" in public (roulette, chat, etc.)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  marketsCreated    Market[]            @relation("MarketCreator")
+  bets              Bet[]
+  transactions      Transaction[]
+  walletAddresses   WalletAddress[]
+  deposits          Deposit[]
+  WithdrawalRequest WithdrawalRequest[]
+  rouletteBets     RouletteBet[]
+  chatMessages     ChatMessage[]
+  polygonTxSubmissions PolygonTxSubmission[]
+  supportTickets   SupportTicket[]
+
+  @@map("users")
+}
+
+model SupportTicket {
+  id          String   @id @default(cuid())
+  userId     String
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  username   String
+  userEmail  String
+  subject    String
+  description String
+  attachments String[] // stored paths under uploads/support/
+  status     String   @default("OPEN") // OPEN | REPLIED | CLOSED
+  adminReply String?
+  repliedAt  DateTime?
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@map("support_tickets")
+}
+
+// User-submitted Polygon tx hashes (I paid). One txHash globally = one credit; admin verifies and credits.
+model PolygonTxSubmission {
+  id              String    @id @default(cuid())
+  userId          String
+  user            User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  txHash          String    @unique // normalized (lowercase); one hash = one credit ever
+  status          String    @default("PENDING") // PENDING | CREDITED | REJECTED
+  createdAt       DateTime  @default(now())
+  creditedAt      DateTime?
+  amountUsd       Float?
+  depositAddress  String?   // set after credit
+  adminNote       String?
+  @@map("polygon_tx_submissions")
+}
+
+model RouletteRound {
+  id            String   @id @default(cuid())
+  roundNumber   Int      // User-facing sequential number (#1, #2, …); internal id unchanged
+  status        String   // OPEN | RESOLVING | FINISHED | CANCELLED
+  startsAt      DateTime?
+  endsAt        DateTime?
+  seedHash      String?  // sha256(serverSeed) before reveal
+  serverSeed    String?  // revealed after finish
+  clientSeed    String   @default("public")
+  nonce         Int      @default(0)
+  totalTickets  Int      @default(0)
+  potCents      Int      @default(0)
+  feeCents      Int      @default(0)
+  winnerUserId  String?
+  winningTicket Int?
+  paidAt        DateTime? // Set once when payout is applied; guard against double payout
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  bets          RouletteBet[]
+
+  @@map("roulette_rounds")
+}
+
+model RouletteBet {
+  id          String        @id @default(cuid())
+  roundId     String
+  round       RouletteRound @relation(fields: [roundId], references: [id], onDelete: Cascade)
+  userId      String
+  user        User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  amountCents Int
+  ticketsFrom Int           // 1-based inclusive start
+  ticketsTo   Int           // 1-based inclusive end
+  createdAt   DateTime      @default(now())
+
+  @@index([roundId, userId])
+  @@map("roulette_bets")
+}
+
+// One row per round that has been paid; roundId UNIQUE prevents duplicate payouts at DB level
+model RoulettePayout {
+  id        String   @id @default(cuid())
+  roundId   String   @unique
+  createdAt DateTime @default(now())
+
+  @@map("roulette_payouts")
+}
+
+model WalletAddress {
+  id     String @id @default(cuid())
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  network String // TRON | SOL | MATIC
+  address String
+
+  // Index used to derive this address from master mnemonic (TRON/MATIC/SOL). null = external address.
+  derivationIndex Int?
+
+  // Optional: for MATIC external wallets (no derivationIndex), store private key hex to allow on-chain sweep.
+  privateKeyHex   String?  // hex with or without 0x; only used for network=MATIC when derivationIndex is null
+
+  // Polygon (MATIC) gas funding: avoid double-funding; cooldown applies.
+  gasFundingTxId String?   // last POL funding tx from master to this address
+  gasFundedAt   DateTime? // when POL was sent (for cooldown)
+
+  lastCreditedBalance Float    @default(0) // Token units already credited to user (inbound deposits only; sweep is separate)
+  createdAt           DateTime @default(now())
+  deposits            Deposit[]
+
+  @@unique([userId, network])
+  @@map("wallet_addresses")
+}
+
+// SOL (and future tx-based) deposits: idempotent by (network, txHash, depositAddress); one tx can credit multiple addresses (e.g. USDC SPL).
+model Deposit {
+  id              String         @id @default(cuid())
+  userId          String
+  user            User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  network         String         // SOL
+  txHash          String
+  walletAddressId String?
+  walletAddress   WalletAddress? @relation(fields: [walletAddressId], references: [id], onDelete: SetNull)
+  depositAddress  String         // deposit owner pubkey (wallet address)
+  ataAddress      String?        // derived USDC ATA for this deposit address
+  rawAmount       Float          // SOL amount (native) or USDC amount (SPL)
+  amountUsd       Float          @default(0)
+  priceUsed       Float?         // USD per SOL at confirm time, or 1 for USDC
+  status          String         // DETECTED | CONFIRMED | SWEPT | CREDITED | FAILED
+  isBelowMinimum  Boolean        @default(false)
+  sweepTxId       String?        // sweptTxHash
+  fundingTxId     String?        // SOL funding tx from master (for sweep gas)
+  fundedAt        DateTime?      // when SOL was sent to this deposit address
+  detectedAt      DateTime?
+  confirmedAt     DateTime?
+  sweptAt         DateTime?
+  creditedAt      DateTime?
+  errorCount      Int            @default(0)
+  lastError       String?
+  nextRetryAt     DateTime?
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
+
+  @@unique([network, txHash, depositAddress])
+  @@map("deposits")
+}
+
+model NetworkCounter {
+  network   String @id // TRON | SOL | MATIC
+  nextIndex Int    @default(0)
+
+  @@map("network_counters")
+}
+
+// Cursor for event-based deposit scanners (TRON: lastBlockTimestamp ms; Polygon: lastProcessedBlock).
+model BlockCursor {
+  network             String   @id
+  lastBlockTimestamp  Int      @default(0) // TRON: min_block_timestamp for next scan (ms)
+  lastProcessedBlock  Int?     // Polygon (MATIC): last processed block number; fromBlock = this + 1
+  updatedAt           DateTime @updatedAt
+
+  @@map("block_cursors")
+}
+
+model Market {
+  id          String  @id @default(cuid())
+  title       String
+  description String?
+  category    String?
+  creatorId   String
+  creator     User    @relation("MarketCreator", fields: [creatorId], references: [id])
+
+  // Market outcomes (e.g., "Yes" and "No" for binary markets)
+  outcomes String[] // ["Yes", "No"] or ["Option A", "Option B", "Option C"]
+
+  // Market status
+  status MarketStatus @default(OPEN)
+
+  // Resolution
+  resolvedAt     DateTime?
+  winningOutcome String?
+
+  // Market metadata
+  endDate   DateTime? // Optional end date for the market
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+
+  // Oracle (Cybersport / PandaScore)
+  startsAt       DateTime? // Match start time for oracle filtering
+  oracleSource   String?   // e.g. "pandascore"
+  oracleMatchId  String?   // external match id
+  marketType     String?   // match_winner | game1_winner | total_maps
+  line           Float?    // for totals (e.g. 2.5)
+  subCategory    String?   // cs2 | dota2 | lol
+  outcomeTeamIds Json?     // match_winner/game1_winner: team ids in same order as outcomes (resolve by teamId)
+  oracleLastError   String?   // last PandaScore error (timeout/429/5xx) for retry backlog
+  oracleLastErrorAt DateTime?
+  oracleRetryCount  Int      @default(0) // after ORACLE_RETRY_MAX → CANCELLED
+
+  bets Bet[]
+
+  @@unique([oracleSource, oracleMatchId, marketType])
+  @@map("markets")
+}
+
+enum MarketStatus {
+  PENDING
+  OPEN
+  AWAITING_RESULT  // Match ended, no payouts until admin selects winner
+  CLOSED
+  RESOLVED
+  CANCELLED
+}
+
+model Bet {
+  id       String @id @default(cuid())
+  userId   String
+  user     User   @relation(fields: [userId], references: [id])
+  marketId String
+  market   Market @relation(fields: [marketId], references: [id])
+
+  outcome String // Which outcome the user bet on
+  amount  Float // Amount bet
+  odds    Float // Odds at time of bet (for payout calculation)
+
+  // Payout tracking
+  payout    Float? // Amount won (null if not resolved or lost)
+  isWinning Boolean? // null = unresolved, true = won, false = lost
+
+  createdAt DateTime @default(now())
+
+  @@map("bets")
+}
+
+model Transaction {
+  id          String  @id @default(cuid())
+  userId      String
+  user        User    @relation(fields: [userId], references: [id])
+  externalId  String? @unique // idempotency: e.g. sol_usdc:txHash:depositAddress so credit cannot run twice
+
+  type        TransactionType
+  amount      Float
+  description String?
+
+  // Related entities
+  marketId String?
+  betId    String?
+
+  createdAt DateTime @default(now())
+
+  @@map("transactions")
+}
+
+enum TransactionType {
+  DEPOSIT
+  WITHDRAWAL
+  BET_PLACED
+  BET_WON
+  BET_LOST
+  MARKET_CREATION_FEE
+  PLATFORM_FEE
+  REFUND
+}
+
+// Tracks platform earnings from market resolution fees
+model AdminProfit {
+  id        String   @id @default(cuid())
+  marketId  String
+  amount    Float // adminCommission (platform fee from this market)
+  createdAt DateTime @default(now())
+
+  @@map("admin_profits")
+}
+
+model WithdrawalRequest {
+  id          String   @id @default(cuid())
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  network     String   // TRON | MATIC
+  toAddress   String
+  amountGross Float    // сколько списали у юзера
+  fee         Float    // фикс комиссия сети (3 / 1 etc)
+  amountNet   Float    // сколько отправим (gross - fee)
+
+  status      String   @default("PENDING") // PENDING | PROCESSING | COMPLETED | FAILED
+  txId        String?
+  error       String?
+
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@map("withdrawal_requests")
+}
+
+model ChatThread {
+  id        String   @id @default(cuid())
+  eventKey  String   @unique // oracleMatchId or market.id fallback; one chat per event
+  createdAt DateTime @default(now())
+  messages  ChatMessage[]
+
+  @@map("chat_threads")
+}
+
+model ChatMessage {
+  id        String     @id @default(cuid())
+  threadId  String
+  userId    String?    // null when sent as Anonymous
+  username  String?    // snapshot at send time or "Anonymous"
+  body      String
+  createdAt DateTime   @default(now())
+
+  thread ChatThread @relation(fields: [threadId], references: [id], onDelete: Cascade)
+  user   User?      @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([threadId, createdAt])
+  @@map("chat_messages")
+}
