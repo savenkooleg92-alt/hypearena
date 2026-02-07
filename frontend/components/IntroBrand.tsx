@@ -52,7 +52,7 @@ export default function IntroBrand() {
   if (!mounted || !visible || step === 'done') return null;
 
   const isDark = resolvedTheme === 'dark';
-  const showOverlay = step !== 'idle' && step !== 'done';
+  const showOverlay = step !== 'idle';
   const showLogo = step === 'logo' || step === 'glow' || step === 'exit';
 
   return (

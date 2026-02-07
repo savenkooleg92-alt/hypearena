@@ -1,6 +1,5 @@
 import express, { Response } from 'express';
 import { z } from 'zod';
-import type { Bet } from '@prisma/client';
 import prisma from '../utils/prisma';
 import { authenticateToken, AuthRequest } from '../middleware/auth';
 import { requireAdmin } from '../middleware/auth';
@@ -280,11 +279,11 @@ router.post('/markets/:id/resolve', withAuth, async (req: AuthRequest, res: Resp
     if (!market.outcomes.includes(winningOutcome)) {
       return res.status(400).json({ error: 'Invalid winning outcome', validOutcomes: market.outcomes });
     }
-    const totalPool = market.bets.reduce((sum: number, b: Bet) => sum + b.amount, 0);
+    const totalPool = market.bets.reduce((sum: number, b: { amount: number }) => sum + b.amount, 0);
     const commission = Math.round(totalPool * 0.015 * 100) / 100;
     const payoutPool = totalPool - commission;
-    const winningBets = market.bets.filter((b: Bet) => b.outcome === winningOutcome);
-    const totalWinningStake = winningBets.reduce((sum: number, b: Bet) => sum + b.amount, 0);
+    const winningBets = market.bets.filter((b: { outcome: string }) => b.outcome === winningOutcome);
+    const totalWinningStake = winningBets.reduce((sum: number, b: { amount: number }) => sum + b.amount, 0);
     await prisma.$transaction(async (tx: any) => {
       await tx.market.update({
         where: { id: market.id },
@@ -308,10 +307,10 @@ router.post('/markets/:id/resolve', withAuth, async (req: AuthRequest, res: Resp
         });
         }
       }
-      const losingBets = market.bets.filter((b: Bet) => b.outcome !== winningOutcome);
+      const losingBets = market.bets.filter((b: { outcome: string }) => b.outcome !== winningOutcome);
       if (losingBets.length > 0) {
         await tx.bet.updateMany({
-          where: { id: { in: losingBets.map((b) => b.id) } },
+          where: { id: { in: losingBets.map((b: { id: string }) => b.id) } },
           data: { isWinning: false, payout: 0 },
         });
       }
@@ -343,7 +342,7 @@ router.post('/markets/:id/remove', withAuth, async (req: AuthRequest, res: Respo
       });
       if (refund) {
         if (isResolved) {
-          for (const bet of market.bets as Array<Bet & { payout: number | null; isWinning: boolean | null }>) {
+          for (const bet of market.bets as Array<{ id: string; userId: string; amount: number; payout: number | null; isWinning: boolean | null }>) {
             const stake = bet.amount;
             const payout = bet.payout ?? 0;
             const isWinning = bet.isWinning === true;

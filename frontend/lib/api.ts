@@ -351,12 +351,13 @@ export const adminAPI = {
       ok: boolean;
       detected: number;
       confirmed: number;
-      failed: number;
+      failed?: number;
       credited: number;
+      swept?: number;
       errors?: string[];
     }>('/admin/polygon/usdt/run-cycle'),
   sweepPolygonUsdtToMaster: () =>
-    api.post<{ ok: boolean; sweptCount: number; results?: Array<{ network: string; address: string; amount: number; txId: string; success: boolean; error?: string }> }>(
+    api.post<{ ok: boolean; sweptCount: number; message?: string; results?: Array<{ network: string; address: string; amount: number; txId: string; success: boolean; error?: string }> }>(
       '/admin/polygon/usdt/sweep'
     ),
   creditPolygonDeposit: (body: { txHash: string; depositAddress: string; amountUsd: number }) =>
@@ -379,6 +380,7 @@ export const adminAPI = {
       sweptCount: number;
       results?: Array<{ address: string; amount: number; txId: string; success: boolean; error?: string }>;
       message?: string;
+      error?: string;
     }>('/admin/polygon/credit-and-sweep', { txHash }),
   getPolygonUserSubmissions: () =>
     api.get<
@@ -405,6 +407,7 @@ export const adminAPI = {
       sweptCount?: number;
       results?: Array<{ address: string; amount: number; txId: string; success: boolean; error?: string }>;
       message?: string;
+      error?: string;
     }>('/admin/polygon/user-submissions/credit', { id }),
   backfillSolUsdcDeposit: (body: { txHash: string; userEmail: string; amountUsd?: number }) =>
     api.post<{

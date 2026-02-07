@@ -308,7 +308,7 @@ export default function AdminSolDepositsPage() {
           <ul className="text-sm text-amber-700 dark:text-amber-300 space-y-1 mb-3">
             {pending.map((p) => (
               <li key={p.id}>
-                {p.txHash.slice(0, 20)}… — {p.user?.email ?? p.userId} — ${p.amountUsd.toFixed(2)} — {p.status}
+                {p.txHash.slice(0, 20)}… — {p.user?.email ?? p.user?.id} — ${p.amountUsd.toFixed(2)} — {p.status}
               </li>
             ))}
           </ul>

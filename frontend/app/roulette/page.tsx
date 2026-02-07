@@ -408,7 +408,7 @@ export default function RoulettePage() {
       }
       const winnerBet = bets.find((b) => winningTicket >= b.ticketsFrom && winningTicket <= b.ticketsTo);
       const showWinBanner = () => {
-        if (winnerBet?.userId === userId) {
+        if (winnerBet && winnerBet.userId === userId) {
           console.log('[spin] show winner popup userId=', userId);
           playRouletteWinner();
           const feeCents = Math.floor(potCents * 0.05);
@@ -935,7 +935,9 @@ function RouletteWheel({
 
   useLayoutEffect(() => {
     const isThisSpin =
-      round && (spinState.spinRoundId === round.id || String(spinState.spinRoundId).startsWith('test-'));
+      round && (spinState.status === 'spinning' || spinState.status === 'done')
+        ? (spinState.spinRoundId === round.id || String(spinState.spinRoundId).startsWith('test-'))
+        : false;
     if (spinState.status !== 'spinning' || !round || !isThisSpin) return;
     const track = trackRef.current;
     if (!track) return;
@@ -956,7 +958,13 @@ function RouletteWheel({
       cancelAnimationFrame(rafId);
       track.removeEventListener('transitionend', onEnd);
     };
-  }, [spinState.status, spinState.spinRoundId, spinState.finalOffsetPx, round?.id, onTransitionEnd]);
+  }, [
+    spinState.status,
+    spinState.status === 'spinning' || spinState.status === 'done' ? spinState.spinRoundId : null,
+    spinState.status === 'spinning' || spinState.status === 'done' ? spinState.finalOffsetPx : 0,
+    round?.id,
+    onTransitionEnd,
+  ]);
 
   const trackTransform =
     isDoneThisRound

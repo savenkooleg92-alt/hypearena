@@ -348,7 +348,7 @@ export default function MarketPage() {
                 Match ended. Awaiting result confirmation.
               </p>
             )}
-            {lifecycle === 'ENDED' && !market.winningOutcome && lifecycle !== 'AWAITING_RESULT' && (
+            {lifecycle === 'ENDED' && !market.winningOutcome && (
               <p className="text-sm text-gray-500 dark:text-dark-text-secondary mb-2">
                 Match ended. Awaiting result.
               </p>

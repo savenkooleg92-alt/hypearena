@@ -138,7 +138,7 @@ export default function AdminCreateBattlePage() {
         return;
       }
 
-      const payload: Record<string, string> = {
+      const payload: { title: string; description?: string; category?: string; outcomes: string[]; endDate?: string; startsAt?: string } = {
         ...formData,
         endDate: dateObject.toISOString(),
       };
