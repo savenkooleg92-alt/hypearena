@@ -52,8 +52,15 @@ logSmtpConfigOnce();
 const app = express();
 const PORT = process.env.PORT || 3001;
 
-// Middleware
-app.use(cors());
+// Middleware — CORS: allow frontend origin and credentials (cookies / Authorization)
+app.use(
+  cors({
+    origin: [
+      'https://hype-arena-frontend-production.up.railway.app',
+    ],
+    credentials: true,
+  })
+);
 app.use(express.json());
 
 // Routes
